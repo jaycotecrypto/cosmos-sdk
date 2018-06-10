@@ -13,6 +13,7 @@ IMPROVEMENTS
 * auth module uses go-wire codec instead of 'encoding/json'
 * revised use of endblock and beginblock
 * added testnet command
+* added localnet commands to Makefile (docker-based local testnet)
 
 FIXES
 * [cli] fixed cli-bash tests
