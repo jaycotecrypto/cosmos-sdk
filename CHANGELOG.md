@@ -2,6 +2,7 @@
 
 BREAKING CHANGES
 * msg.GetSignBytes() now returns bech32-encoded addresses in all cases
+* [stake] validator stores last by power key used 
 
 FEATURES
 
@@ -13,6 +14,7 @@ IMPROVEMENTS
 FIXES
 * [lcd] Switch to bech32 for addresses on all human readable inputs and outputs
 * [cli] Added `--gas` flag to specify transaction gas limit
+* [stake] validator by power index now properly removed 
 
 ## 0.18.0
 

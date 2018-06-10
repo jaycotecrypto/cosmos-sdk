@@ -43,7 +43,8 @@ func InitGenesis(ctx sdk.Context, k Keeper, data GenesisState) {
 
 		// manually set indexes for the first time
 		k.setValidatorByPubKeyIndex(ctx, validator)
-		k.setValidatorByPowerIndex(ctx, validator, data.Pool)
+		newPower := k.updateValidatorByPowerIndex(ctx, validator, data.Pool)
+		validator.LastByPowerKey = newPower
 		if validator.Status() == sdk.Bonded {
 			store.Set(GetValidatorsBondedKey(validator.PubKey), validator.Owner)
 		}

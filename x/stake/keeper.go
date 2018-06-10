@@ -73,9 +73,22 @@ func (k Keeper) setValidatorByPubKeyIndex(ctx sdk.Context, validator Validator) 
 	store.Set(GetValidatorByPubKeyIndexKey(validator.PubKey), validator.Owner)
 }
 
-func (k Keeper) setValidatorByPowerIndex(ctx sdk.Context, validator Validator, pool Pool) {
+// used in testing
+func (k Keeper) validatorByPowerIndexExists(ctx sdk.Context, power []byte) bool {
 	store := ctx.KVStore(k.storeKey)
-	store.Set(GetValidatorsByPowerKey(validator, pool), validator.Owner)
+	return store.Get(power) != nil
+}
+
+// update the validator by power index
+func (k Keeper) updateValidatorByPowerIndex(ctx sdk.Context, validator Validator, pool Pool) (newPower []byte) {
+	store := ctx.KVStore(k.storeKey)
+	oldPower := validator.LastByPowerKey
+	if oldPower != nil {
+		store.Delete(oldPower)
+	}
+	newPower = GetValidatorsByPowerKey(validator, pool)
+	store.Set(newPower, validator.Owner)
+	return newPower
 }
 
 // Get the set of all validators with no limits, used during genesis dump
@@ -257,11 +270,12 @@ func (k Keeper) updateValidator(ctx sdk.Context, validator Validator) Validator 
 	}
 
 	// update the list ordered by voting power
+	//newPower := k.updateValidatorByPowerIndex(ctx, validator, pool)
 	if oldFound {
 		store.Delete(GetValidatorsByPowerKey(oldValidator, pool))
 	}
-	valPower := GetValidatorsByPowerKey(validator, pool)
-	store.Set(valPower, validator.Owner)
+	newPower := GetValidatorsByPowerKey(validator, pool)
+	store.Set(newPower, validator.Owner) //validator.LastByPowerKey = newPower
 
 	// efficiency case:
 	// if already bonded and power increasing only need to update tendermint
@@ -276,7 +290,7 @@ func (k Keeper) updateValidator(ctx sdk.Context, validator Validator) Validator 
 	cliffPower := k.getCliffValidatorPower(ctx)
 	if cliffPower != nil &&
 		(!oldFound || (oldFound && oldValidator.Status() == sdk.Unbonded)) &&
-		bytes.Compare(valPower, cliffPower) == -1 { //(valPower < cliffPower
+		bytes.Compare(newPower, cliffPower) == -1 { //(valPower < cliffPower
 		return validator
 	}
 
@@ -497,7 +511,7 @@ func (k Keeper) removeValidator(ctx sdk.Context, address sdk.Address) {
 	// first retreive the old validator record
 	validator, found := k.GetValidator(ctx, address)
 	if !found {
-		return
+		panic("cannot remove validator which isn't found")
 	}
 
 	// delete the old validator record

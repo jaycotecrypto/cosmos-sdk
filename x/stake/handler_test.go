@@ -294,6 +294,111 @@ func TestMultipleMsgDelegate(t *testing.T) {
 	}
 }
 
+func TestValidatorByPowerIndex(t *testing.T) {
+	validatorAddr, validatorAddr2, delegatorAddr := addrs[0], addrs[1], addrs[2]
+
+	initBond := int64(1000)
+	initBondStr := "1000"
+	ctx, _, keeper := createTestInput(t, false, initBond)
+
+	// create validator
+	msgCreateValidator := newTestMsgCreateValidator(validatorAddr, pks[0], initBond)
+	got := handleMsgCreateValidator(ctx, msgCreateValidator, keeper)
+	assert.True(t, got.IsOK(), "expected create-validator to be ok, got %v", got)
+
+	// verify the self-delegation exists
+	bond, found := keeper.GetDelegation(ctx, validatorAddr, validatorAddr)
+	require.True(t, found)
+	gotBond := bond.Shares.Evaluate()
+	require.Equal(t, initBond, gotBond,
+		"initBond: %v\ngotBond: %v\nbond: %v\n",
+		initBond, gotBond, bond)
+
+	// verify that the by power index exists
+	validator, found := keeper.GetValidator(ctx, validatorAddr)
+	require.True(t, found)
+	pool := keeper.GetPool(ctx)
+	power := GetValidatorsByPowerKey(validator, pool)
+	require.True(t, keeper.validatorByPowerIndexExists(ctx, power))
+
+	// create a delegation
+	msgDelegate := newTestMsgDelegate(delegatorAddr, validatorAddr, 10)
+	got = handleMsgDelegate(ctx, msgDelegate, keeper)
+	assert.True(t, got.IsOK(), "expected delegation to be ok, got %v", got)
+
+	require.False(t, keeper.validatorByPowerIndexExists(ctx, power))
+	validator, found = keeper.GetValidator(ctx, validatorAddr)
+	require.True(t, found)
+	pool = keeper.GetPool(ctx)
+	power = GetValidatorsByPowerKey(validator, pool)
+	require.True(t, keeper.validatorByPowerIndexExists(ctx, power))
+
+	// create second validator
+	msgCreateValidator = newTestMsgCreateValidator(validatorAddr2, pks[1], initBond)
+	got = handleMsgCreateValidator(ctx, msgCreateValidator, keeper)
+	assert.True(t, got.IsOK(), "expected create-validator to be ok, got %v", got)
+
+	// remove a delegation
+	msgUnbond := NewMsgUnbond(delegatorAddr, validatorAddr, "10") // self-delegation
+	got = handleMsgUnbond(ctx, msgUnbond, keeper)
+	require.True(t, got.IsOK(), "expected msg to be ok, got %v", got)
+
+	require.False(t, keeper.validatorByPowerIndexExists(ctx, power))
+	validator, found = keeper.GetValidator(ctx, validatorAddr)
+	require.True(t, found)
+	pool = keeper.GetPool(ctx)
+	power = GetValidatorsByPowerKey(validator, pool)
+	require.True(t, keeper.validatorByPowerIndexExists(ctx, power))
+
+	// verify that the first power index has changed
+	//require.False(t, keeper.validatorByPowerIndexExists(ctx, power))
+	//validator, found = keeper.GetValidator(ctx, validatorAddr)
+	//require.True(t, found)
+	//pool = keeper.GetPool(ctx)
+	//power = GetValidatorsByPowerKey(validator, pool)
+	//require.True(t, keeper.validatorByPowerIndexExists(ctx, power))
+
+	// unbond self-delegation
+	msgUnbond = NewMsgUnbond(validatorAddr, validatorAddr, initBondStr)
+	got = handleMsgUnbond(ctx, msgUnbond, keeper)
+	assert.True(t, got.IsOK(),
+		"got: %v\nmsgUnbond: %v\ninitBondStr: %v\n", got, msgUnbond, initBondStr)
+
+	// verify that by power key nolonger exists
+	_, found = keeper.GetValidator(ctx, validatorAddr)
+	require.False(t, found)
+	require.False(t, keeper.validatorByPowerIndexExists(ctx, power))
+}
+
+func TestValidatorRevoke(t *testing.T) {
+	validatorAddr := addrs[0]
+
+	initBond := int64(1000)
+	ctx, _, keeper := createTestInput(t, false, initBond)
+
+	// create validator
+	msgCreateValidator := newTestMsgCreateValidator(validatorAddr, pks[0], initBond)
+	got := handleMsgCreateValidator(ctx, msgCreateValidator, keeper)
+	assert.True(t, got.IsOK(), "expected create-validator to be ok, got %v", got)
+
+	// verify that the by power index exists
+	validator, found := keeper.GetValidator(ctx, validatorAddr)
+	require.True(t, found)
+	pool := keeper.GetPool(ctx)
+	power := GetValidatorsByPowerKey(validator, pool)
+	require.True(t, keeper.validatorByPowerIndexExists(ctx, power))
+
+	keeper.Revoke(ctx, validator.PubKey)
+
+	// verify that by power updated
+	require.False(t, keeper.validatorByPowerIndexExists(ctx, power))
+	validator, found = keeper.GetValidator(ctx, validatorAddr)
+	require.True(t, found)
+	pool = keeper.GetPool(ctx)
+	power = GetValidatorsByPowerKey(validator, pool)
+	require.True(t, keeper.validatorByPowerIndexExists(ctx, power))
+}
+
 func TestRevokeValidator(t *testing.T) {
 	ctx, _, keeper := createTestInput(t, false, 1000)
 	validatorAddr, delegatorAddr := addrs[0], addrs[1]

@@ -38,6 +38,8 @@ type Validator struct {
 
 	// fee related
 	PrevBondedShares sdk.Rat `json:"prev_bonded_shares"` // total shares of a global hold pools
+
+	LastByPowerKey []byte `json:"last_power_store_index"` // last key used for the power index store
 }
 
 // Validators - list of Validators
